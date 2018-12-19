@@ -1,0 +1,194 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>Desconocido </title></head><body>
+<h2 id="overview">Overview</h2>
+<p>This is the code for <a href="https://youtu.be/PXJtFc8DjsE">this</a> video on Youtube by Siraj Raval on Chatbots for Marketing. </p>
+<h1 id="deep-qa">Deep Q&amp;A</h1>
+<p><a href="https://gitter.im/chatbot-pilots/DeepQA?utm_source=badge&amp;utm_medium=badge&amp;utm_campaign=pr-badge&amp;utm_content=badge"><img alt="Join the chat at https://gitter.im/chatbot-pilots/DeepQA" src="https://badges.gitter.im/chatbot-pilots/DeepQA.svg"/></a></p>
+<h4 id="table-of-contents">Table of Contents</h4>
+<ul>
+<li><a href="#presentation">Presentation</a></li>
+<li><a href="#installation">Installation</a></li>
+<li><a href="#running">Running</a><ul>
+<li><a href="#chatbot">Chatbot</a></li>
+<li><a href="#web-interface">Web interface</a></li>
+</ul>
+</li>
+<li><a href="#results">Results</a></li>
+<li><a href="#pretrained-model">Pretrained model</a></li>
+<li><a href="#improvements">Improvements</a></li>
+<li><a href="#upgrade">Upgrade</a></li>
+</ul>
+<h2 id="presentation">Presentation</h2>
+<p>This work tries to reproduce the results of <a href="http://arxiv.org/abs/1506.05869">A Neural Conversational Model</a> (aka the Google chatbot). It uses a RNN (seq2seq model) for sentence predictions. It is done using python and TensorFlow.</p>
+<p>The loading corpus part of the program is inspired by the Torch <a href="https://github.com/macournoyer/neuralconvo">neuralconvo</a> from <a href="https://github.com/macournoyer">macournoyer</a>.</p>
+<p>For now, DeepQA support the following dialog corpus:
+ * <a href="http://www.cs.cornell.edu/~cristian/Cornell_Movie-Dialogs_Corpus.html">Cornell Movie Dialogs</a> corpus (default). Already included when cloning the repository.
+ * <a href="http://opus.lingfil.uu.se/OpenSubtitles.php">OpenSubtitles</a> (thanks to <a href="https://github.com/eschnou">Eschnou</a>). Much bigger corpus (but also noisier). To use it, follow <a href="data/opensubs/">those instructions</a> and use the flag <code>--corpus opensubs</code>.
+ * Supreme Court Conversation Data (thanks to <a href="https://github.com/julien-c">julien-c</a>). Available using <code>--corpus scotus</code>. See the <a href="data/scotus/">instructions</a> for installation.
+ * <a href="https://arxiv.org/abs/1506.08909">Ubuntu Dialogue Corpus</a> (thanks to <a href="https://github.com/julien-c">julien-c</a>). Available using <code>--corpus ubuntu</code>. See the <a href="data/ubuntu/">instructions</a> for installation.
+ * Your own data (thanks to <a href="https://github.com/julien-c">julien-c</a>) by using a simple custom conversation format (See <a href="data/lightweight">here</a> for more info).</p>
+<p>To speedup the training, it's also possible to use pre-trained word embeddings (thanks to <a href="https://github.com/eschnou">Eschnou</a>). More info <a href="data/embeddings">here</a>.</p>
+<h2 id="installation">Installation</h2>
+<p>The program requires the following dependencies (easy to install using pip: <code>pip3 install -r requirements.txt</code>):
+ * python 3.5
+ * tensorflow (tested with v1.0)
+ * numpy
+ * CUDA (for using GPU)
+ * nltk (natural language toolkit for tokenized the sentences)
+ * tqdm (for the nice progression bars)</p>
+<p>You might also need to download additional data to make nltk work.</p>
+<p><code>python3 -m nltk.downloader punkt</code></p>
+<p>The Cornell dataset is already included. For the other datasets, look at the readme files into their respective folders (inside <code>data/</code>).</p>
+<p>The web interface requires some additional packages:
+ * django (tested with 1.10)
+ * channels
+ * Redis (see <a href="http://redis.io/topics/quickstart">here</a>)
+ * asgi_redis (at least 1.0)</p>
+<p>A Docker installation is also available. More detailed instructions <a href="docker/README.md">here</a>.</p>
+<h2 id="running">Running</h2>
+<h3 id="chatbot">Chatbot</h3>
+<p>To train the model, simply run <code>main.py</code>. Once trained, you can test the results with <code>main.py --test</code> (results generated in 'save/model/samples_predictions.txt') or <code>main.py --test interactive</code> (more fun).</p>
+<p>Here are some flags which could be useful. For more help and options, use <code>python main.py -h</code>:
+ * <code>--modelTag &lt;name&gt;</code>: allow to give a name to the current model to differentiate between them when testing/training.
+ * <code>--keepAll</code>: use this flag when training if when testing, you want to see the predictions at different steps (it can be interesting to see the program changes its name and age as the training progress). Warning: It can quickly take a lot of storage space if you don't increase the <code>--saveEvery</code> option.
+ * <code>--filterVocab 20</code> or <code>--vocabularySize 30000</code>: Limit the vocabulary size to and optimize the performances and memory usage. Replace the words used less than 20 times by the <code>&lt;unknown&gt;</code> token and set a maximum vocabulary size.
+ * <code>--verbose</code>: when testing, will print the sentences as they are computed.
+ * <code>--playDataset</code>: show some dialogue samples from the dataset (can be use conjointly with <code>--createDataset</code> if this is the only action you want to perform).</p>
+<p>To visualize the computational graph and the cost with <a href="https://www.tensorflow.org/how_tos/summaries_and_tensorboard/">TensorBoard</a>, just run <code>tensorboard --logdir save/</code>.</p>
+<p>By default, the network architecture is a standard encoder/decoder with two LSTM layers (hidden size of 256) and an embedding size for the vocabulary of 32. The network is trained using ADAM. The maximum sentence length is set to 10 words, but can be increased.</p>
+<h3 id="web-interface">Web interface</h3>
+<p>Once trained, it's possible to chat with it using a more user friendly interface. The server will look at the model copied to <code>save/model-server/model.ckpt</code>. The first time you want to use it, you'll need to configure it with:</p>
+<p><code>bash
+export CHATBOT_SECRET_KEY="my-secret-key"
+cd chatbot_website/
+python manage.py makemigrations
+python manage.py migrate</code></p>
+<p>Then, to launch the server locally, use the following commands:</p>
+<p><code>bash
+cd chatbot_website/
+redis-server &amp;  # Launch Redis in background
+python manage.py runserver</code></p>
+<p>After launch, the interface should be available on <a href="http://localhost:8000/">http://localhost:8000/</a>. If you want to deploy the program on a server, use <code>python manage.py runserver 0.0.0.0</code> instead. More info <a href="https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/">here</a>.</p>
+<p><a href="http://e-pot.xyz/cv/chatbot.png"><img alt="Chatbot web interface" src="chatbot_miniature-1.png"/></a></p>
+<h2 id="results">Results</h2>
+<p>Surprisingly, it's possible to get some results after only 1 or 2 hours of training (on a GeForce GT 740M), by drastically reducing the input sequence to 5 words and output to 3 (plus the <code>go</code> and <code>eos</code> tokens) and by using a small embedding size (something like 25). Since then I modified the code and now the output length has to match the input one but you can still reproduce the original results, using <a href="https://github.com/Conchylicultor/DeepQA/tree/92863e2929580818f866f16969909fe2093d41d1">this version</a>.
+Of course, the network won't be really chatty:</p>
+<pre><code>Q: Hi
+A: Hi.
+
+Q: What is your name ?
+A: Laura.
+
+Q: What does that mean ?
+A: I dunno.
+
+Q: How old are you ?
+A: thirty-five.
+
+Q: Will Google hire me ?
+A: No.
+
+Q: Tell me the alphabet
+A: Fuck you.
+
+Q: That's not nice
+A: Yeah.
+</code></pre>
+<p>Here is some case where it fails:</p>
+<pre><code>Q: Who is Laura ?
+A: My brother.
+
+Q: Say 'goodbye'
+A: Alright.
+
+Q: What is cooking ?
+A: A channel.
+
+Q: Can you say no ?
+A: No.
+
+Q: Two plus two
+A: Manny...
+</code></pre>
+<p>With longer sentences, the network is much slower to train. After 250000 iterations with maxLength=10, the network still mainly gives evasive answers (by answering most of the open ended questions by 'I don't know') but it seems to have integrated some basic semantic:</p>
+<pre><code>Q: When are the fireworks ?
+A: Tomorrow.
+
+Q: What color ?
+A: Gray.
+
+Q: Which apple ?
+A: That's the first one.
+
+Q: What time is it ?
+A: Eleven o'clock.
+
+Q: Who is Skywalker ?
+A: She's a freelance bio-exorcist.
+
+Q: Who is John ?
+A: The old man.
+
+Q: Who is Jenny ?
+A: The man who killed herself.
+
+Q: When were you born ?
+A: Soon.
+</code></pre>
+<p>As shown on the last questions, the network still does some confusion between the genders and the present/future. I also tried some deeper philosophical questions with more or less success.</p>
+<pre><code>Q: What is the purpose of being intelligent ?
+A: The man are obsolete.
+
+Q: What is immoral ?
+A: The truth.
+
+Q: What is morality ?
+A: The worst.
+
+Q: What is the purpose of existence ?
+A: It 's private.
+
+Q: What happens if machines can think ?
+A: I think I'll just lie with you.
+</code></pre>
+<p>The model I trained is quite limited by the embedding size I put and by its size, and by the training corpus size. Its 'thought vector' is also probably too small to answer the kind of following:</p>
+<pre><code>Q: My name is David. What is my name ?
+A: Debbie.
+
+Q: My name is John. What is my name ?
+A: Carl Smith.
+
+Q: How many legs does a cat have ?
+A: Four.
+
+Q: How many legs does a spider have ?
+A: Four.
+
+Q: Do you prefer football or soccer ?
+A: Whiskey.
+</code></pre>
+<p>It also seems to overfit as sometimes it will just pop out sentences from its training set unrelated to the question. Adding some dropout should reduce the issue.</p>
+<pre><code>Q: I play tennis. What do I play ?
+A: I'm going to get laid.
+
+Q: What color is the sky ?
+A: One of the deputies is everywhere.
+</code></pre>
+<h2 id="pretrained-model">Pretrained model</h2>
+<p>You can find a pre-trained model <a href="https://drive.google.com/file/d/0Bw-phsNSkq23OXRFTkNqN0JGUU0/view?usp=sharing">here</a>, trained of the default corpus. To use it:
+ 1. Extract the zip file inside <code>DeepQA/save/</code>
+ 2. Copy the preprocessed dataset from <code>save/model-pretrainedv2/dataset-cornell-old-lenght10-filter0-vocabSize0.pkl</code> to <code>data/samples/</code>.
+ 3. Run <code>./main.py --modelTag pretrainedv2 --test interactive</code>.</p>
+<p>Thanks to Nicholas C., <a href="https://drive.google.com/drive/folders/0Bw-phsNSkq23c29ZQ2N6X3lyc1U?usp=sharing">here</a> (<a href="https://mcastedu-my.sharepoint.com/personal/nicholas_cutajar_a100636_mcast_edu_mt/_layouts/15/guestaccess.aspx?folderid=077576c4cf9854642a968f67909380f45&amp;authkey=AVt2JWMPkf2R_mWBpI1eAUY">original</a>) are some additional pre-trained models (compatible with TF 1.2) for diverse datasets. The folder also contains the pre-processed dataset for Cornell, OpenSubtitles, Ubuntu and Scotus (to move inside <code>data/samples/</code>). Those are required is you don't want to process the datasets yourself.</p>
+<p>If you have a high-end GPU, don't hesitate to play with the hyper-parameters/corpus to train a better model. From my experiments, it seems that the learning rate and dropout rate have the most impact on the results. Also if you want to share your models, don't hesitate to contact me and I'll add it here.</p>
+<h2 id="improvements">Improvements</h2>
+<p>In addition to trying larger/deeper model, there are a lot of small improvements which could be tested. Don't hesitate to send a pull request if you implement one of those. Here are some ideas:</p>
+<ul>
+<li>For now, the predictions are deterministic (the network just take the most likely output) so when answering a question, the network will always gives the same answer. By adding a sampling mechanism, the network could give more diverse (and maybe more interesting) answers. The easiest way to do that is to sample the next predicted word from the SoftMax probability distribution. By combining that with the <code>loop_function</code> argument of <code>tf.nn.seq2seq.rnn_decoder</code>, it shouldn't be too difficult to add. After that, it should be possible to play with the SoftMax temperature to get more conservative or exotic predictions.</li>
+<li>Adding attention could potentially improve the predictions, especially for longer sentences. It should be straightforward by replacing <code>embedding_rnn_seq2seq</code> by <code>embedding_attention_seq2seq</code> on <code>model.py</code>.</li>
+<li>Having more data usually don't hurt. Training on a bigger corpus should be beneficial. <a href="https://www.reddit.com/r/datasets/comments/59039y/updated_reddit_comment_dataset_up_to_201608/">Reddit comments dataset</a> seems the biggest for now (and is too big for this program to support it). Another trick to artificially increase the dataset size when creating the corpus could be to split the sentences of each training sample (ex: from the sample <code>Q:Sentence 1. Sentence 2. =&gt; A:Sentence X. Sentence Y.</code> we could generate 3 new samples: <code>Q:Sentence 1. Sentence 2. =&gt; A:Sentence X.</code>, <code>Q:Sentence 2. =&gt; A:Sentence X. Sentence Y.</code> and <code>Q:Sentence 2. =&gt; A:Sentence X.</code>. Warning: other combinations like <code>Q:Sentence 1. =&gt; A:Sentence X.</code> won't work because it would break the transition <code>2 =&gt; X</code> which links the question to the answer)</li>
+<li>The testing curve should really be monitored as done in my other <a href="https://github.com/Conchylicultor/MusicGenerator">music generation</a> project. This would greatly help to see the impact of dropout on overfitting. For now it's just done empirically by manually checking the testing prediction at different training steps.</li>
+<li>For now, the questions are independent from each other. To link questions together, a straightforward way would be to feed all previous questions and answer to the encoder before giving the answer. Some caching could be done on the final encoder stated to avoid recomputing it each time. To improve the accuracy, the network should be retrain on entire dialogues instead of just individual QA. Also when feeding the previous dialogue to the encoder, new tokens <code>&lt;Q&gt;</code> and <code>&lt;A&gt;</code> could be added so the encoder knows when the interlocutor is changing. I'm not sure though that the simple seq2seq model would be sufficient to capture long term dependencies between sentences. Adding a bucket system to group similar input lengths together could greatly improve training speed.</li>
+</ul>
+<h2 id="credits">Credits</h2>
+<p>Credits for this code goes to <a href="https://github.com/Conchylicultor/DeepQA">conchylucultor</a>. I've merely created a wrapper to get people started. </p>
+</body></html>
